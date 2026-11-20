@@ -1,0 +1,19 @@
+{
+  "name": "frida-web-gui",
+  "version": "7.0.0",
+  "description": "Trạm Điều Khiển Frida v6.0.0 — Đổi Kết Nối Đa Kênh Thật 100%, GUI 5 Bước Tuần Tự Lưu Bền Vững, Sửa/Lưu Mẫu JS Riêng, Liên Thông Tiêm JS ⇄ Bắt Pack ⇄ Lưu ID ⇄ Giải Mã StoreKit JWS & TUI 5 Phân Hệ",
+  "type": "module",
+  "main": "src/server.mjs",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "tui": "node scripts/workspace-tui.mjs",
+    "test": "node --test --test-force-exit tests/*.test.mjs"
+  },
+  "dependencies": {
+    "esbuild": "0.28.2",
+    "express": "4.22.3",
+    "frida": "17.26.2",
+    "frida-objc-bridge": "8.0.6",
+    "ws": "8.23.0"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+logs/
+data/
+.docs/
+.vscode/
+.code-graph/
+.env
+.env.local
+.env.*.local
+*.log
+*.pem
+*.key
+

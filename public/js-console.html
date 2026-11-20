@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bảng Điều Khiển Gửi JS Frida — Thực Thi, Phản Hồi &amp; Bắt Gói Tin Thời Gian Thực</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2'%3E%3Cpolyline points='16 18 22 12 16 6'/%3E%3Cpolyline points='8 6 2 12 8 18'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/js-console.css" />
+  </head>
+  <body>
+    <div class="console-shell">
+      <!-- ===================================================================== -->
+      <!-- 1. THANH TIÊU ĐỀ & TRẠNG THÁI KẾT NỐI HIỆN TẠI                        -->
+      <!-- ===================================================================== -->
+      <header class="jc-topbar" role="banner">
+        <div class="jc-brand">
+          <div class="jc-brand-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+          </div>
+          <div>
+            <div class="jc-brand-row">
+              <h1 class="jc-title">Bảng Điều Khiển Gửi JS Frida</h1>
+              <span class="jc-pill" id="serverVersionPill">Đang đọc...</span>
+              <a class="jc-nav-link" href="/" title="Quay về giao diện Trạm Điều Khiển đầy đủ">
+                ← Trạm Điều Khiển Chính
+              </a>
+            </div>
+            <div class="jc-live-meta">
+              <span id="wsDot" class="dot dot-offline"></span>
+              <span id="wsStatusLabel">WebSocket: Đang kết nối...</span>
+              <span class="sep-dot">•</span>
+              <span id="sessionBadge" class="inline-badge badge-idle">Phiên Frida: Chưa gắn</span>
+              <span class="sep-dot">•</span>
+              <span id="truthBadge" class="inline-badge badge-muted">Sự kiện thiết bị: 0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="jc-top-actions">
+          <button id="probeConnectionsBtn" type="button" class="btn btn-secondary" title="Kiểm tra thực tế 7 kênh kết nối và Frida Server">
+            🔍 Kiểm tra kết nối
+          </button>
+          <button id="repairFridaBtn" type="button" class="btn btn-warning" title="Dọn sạch phiên cũ và kết nối lại Frida">
+            🛠️ Làm sạch Frida
+          </button>
+        </div>
+      </header>
+
+      <!-- ===================================================================== -->
+      <!-- 2. DẢI KÊNH KẾT NỐI THẬT & THANH THAO TÁC MÓC VÀO APP                 -->
+      <!-- ===================================================================== -->
+      <section class="jc-control-deck" aria-label="Kiểm tra kết nối và thao tác móc vào ứng dụng">
+        <!-- Dải trạng thái các kênh kết nối thực tế -->
+        <div class="connection-strip">
+          <div class="strip-head">
+            <span class="strip-title">Trạng thái kết nối hiện tại (Đo thực tế)</span>
+            <span id="connectionUpdatedAt" class="muted-text">Chưa quét</span>
+          </div>
+          <div id="channelCards" class="channel-cards" role="list">
+            <div class="channel-chip is-loading">Đang đo trạng thái các kênh kết nối thực tế...</div>
+          </div>
+        </div>
+
+        <!-- Thanh móc vào App -->
+        <div class="attach-bar">
+          <div class="field-group">
+            <label for="deviceSelect" class="field-label">1. Thiết bị Frida</label>
+            <div class="inline-row">
+              <select id="deviceSelect" class="input-ctrl" aria-label="Chọn thiết bị Frida">
+                <option value="">Đang quét thiết bị...</option>
+              </select>
+              <button id="refreshDevicesBtn" type="button" class="btn btn-icon" title="Quét lại thiết bị và danh sách ứng dụng">
+                ↻
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group field-grow">
+            <label for="targetSelect" class="field-label">2. Ứng dụng / Tiến trình mục tiêu</label>
+            <div class="inline-row">
+              <input
+                id="targetFilter"
+                type="search"
+                class="input-ctrl input-filter"
+                placeholder="Lọc tên App / Bundle ID / PID..."
+                autocomplete="off"
+              />
+              <select id="targetSelect" class="input-ctrl" aria-label="Chọn ứng dụng mục tiêu">
+                <option value="">Chọn thiết bị trước...</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <span class="field-label">3. Chế độ móc App</span>
+            <div class="segmented" role="group" aria-label="Chế độ móc ứng dụng">
+              <button type="button" class="seg-btn active" data-mode="auto" title="App đang mở thì gắn luôn; chưa mở thì tự bật">
+                Tự động
+              </button>
+              <button type="button" class="seg-btn" data-mode="attach" title="Chỉ gắn vào tiến trình đang chạy">
+                Đang mở
+              </button>
+              <button type="button" class="seg-btn" data-mode="spawn" title="Khởi động lại App từ đầu">
+                Mở mới
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group field-actions">
+            <label class="checkbox-label" title="Tự động nhúng frida-objc-bridge cho Frida 17">
+              <input id="objcBridgeChk" type="checkbox" checked />
+              <span>ObjC Bridge</span>
+            </label>
+            <div class="inline-row">
+              <button id="attachAppBtn" type="button" class="btn btn-primary" title="Móc phiên Frida vào ứng dụng đã chọn">
+                🔌 Móc vào App
+              </button>
+              <button id="enableCaptureBtn" type="button" class="btn btn-accent" title="Bật hook bắt gói tin HTTP/HTTPS trên ứng dụng">
+                📡 Bắt gói tin
+              </button>
+              <button id="detachAppBtn" type="button" class="btn btn-danger" title="Ngắt phiên Frida đang chạy" disabled>
+                ⏹ Ngắt
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- 3. LUỒNG CHÍNH 3 KHUNG: GỬI JS ➔ TRẢ LỜI SERVER ➔ BẮT GÓI TIN        -->
+      <!-- ===================================================================== -->
+      <main class="jc-workspace">
+        <!-- KHUNG 1: GIAO DIỆN GỬI JS -->
+        <section class="panel panel-editor" aria-labelledby="editorHeading">
+          <div class="panel-head">
+            <div>
+              <h2 id="editorHeading" class="panel-title">1. Giao diện Gửi JS (Frida 17+)</h2>
+              <p class="panel-sub">Soạn hoặc chọn mẫu JS ➔ nhấn <code>Ctrl + Enter</code> hoặc nút Gửi JS</p>
+            </div>
+            <div class="panel-head-actions">
+              <select id="snippetSelect" class="input-ctrl input-compact" aria-label="Chọn kịch bản mẫu">
+                <option value="">-- Nạp mẫu JS từ kho --</option>
+              </select>
+              <button id="insertStarterBtn" type="button" class="btn btn-ghost btn-sm" title="Chèn mẫu Frida 17 chuẩn an toàn">
+                ⚡ Mẫu chuẩn
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-wrap">
+            <textarea
+              id="jsEditor"
+              class="code-editor"
+              spellcheck="false"
+              placeholder="// Nhập mã JavaScript Frida tại đây...&#10;// Gợi ý: dùng send({ type: 'ping', ts: Date.now() }) hoặc console.log(...)&#10;// Nếu mã JS gọi mạng hoặc kích hoạt request trong App, gói tin sẽ hiện ở Khung Bắt Gói Tin."
+            ></textarea>
+          </div>
+
+          <div class="editor-footer">
+            <div class="editor-meta">
+              <span id="editorStats" class="muted-text">0 dòng • 0 ký tự</span>
+              <label class="checkbox-label" title="Tự động bật hook bắt gói tin HTTP sau khi gửi JS thành công">
+                <input id="autoCaptureAfterSendChk" type="checkbox" checked />
+                <span>Tự bật bắt gói tin HTTP</span>
+              </label>
+            </div>
+            <div class="inline-row">
+              <button id="saveSnippetBtn" type="button" class="btn btn-secondary btn-sm">💾 Lưu mẫu</button>
+              <button id="clearEditorBtn" type="button" class="btn btn-ghost btn-sm">🧹 Xóa mã</button>
+              <button id="sendJsBtn" type="button" class="btn btn-primary">🚀 Gửi &amp; Chạy JS</button>
+            </div>
+          </div>
+
+          <!-- Thanh gọi nhanh RPC Export -->
+          <div class="rpc-bar">
+            <span class="rpc-label">Gọi hàm RPC:</span>
+            <input id="rpcMethodInput" type="text" class="input-ctrl input-compact" placeholder="Tên hàm trong rpc.exports" />
+            <input id="rpcArgsInput" type="text" class="input-ctrl input-compact" placeholder="Tham số JSON, VD: []" value="[]" />
+            <button id="callRpcBtn" type="button" class="btn btn-secondary btn-sm">▶ Gọi RPC</button>
+          </div>
+        </section>
+
+        <!-- KHUNG 2: KHUNG TRẢ LỜI TỪ SERVER & KẾT QUẢ JS -->
+        <section class="panel panel-response" aria-labelledby="responseHeading">
+          <div class="panel-head">
+            <div>
+              <h2 id="responseHeading" class="panel-title">2. Khung Trả Lời Từ Server</h2>
+              <p class="panel-sub">Hiển thị phản hồi API máy chủ &amp; dữ liệu thật từ Frida JS (<code>send()</code> / <code>console</code>)</p>
+            </div>
+            <div class="panel-head-actions">
+              <select id="responseFilter" class="input-ctrl input-compact" aria-label="Lọc khung trả lời">
+                <option value="all">Tất cả</option>
+                <option value="api">Phản hồi API</option>
+                <option value="send">JS send()</option>
+                <option value="console">Console</option>
+                <option value="error">Lỗi</option>
+              </select>
+              <button id="copyLatestResponseBtn" type="button" class="btn btn-ghost btn-sm" title="Sao chép phản hồi gần nhất">
+                📋 Copy
+              </button>
+              <button id="clearResponseBtn" type="button" class="btn btn-ghost btn-sm" title="Xóa khung trả lời">
+                🗑️ Dọn
+              </button>
+            </div>
+          </div>
+
+          <div class="search-strip">
+            <input id="responseSearch" type="search" class="input-ctrl input-compact" placeholder="Tìm trong phản hồi server / output JS..." />
+            <span id="responseCountBadge" class="count-pill">0 bản ghi</span>
+          </div>
+
+          <div id="responseList" class="stream-list" role="log" aria-live="polite">
+            <div class="empty-state">Chưa có phản hồi từ server hoặc thiết bị. Hãy kiểm tra kết nối hoặc gửi mã JS.</div>
+          </div>
+        </section>
+
+        <!-- KHUNG 3: KHUNG BẮT GÓI TIN (HTTP/HTTPS CAPTURE) -->
+        <section class="panel panel-packets" aria-labelledby="packetsHeading">
+          <div class="panel-head">
+            <div>
+              <h2 id="packetsHeading" class="panel-title">3. Khung Bắt Gói Tin</h2>
+              <p class="panel-sub">Các gói tin yêu cầu / phản hồi phát sinh từ JS hoặc ứng dụng đang móc</p>
+            </div>
+            <div class="panel-head-actions">
+              <span id="captureStatePill" class="inline-badge badge-idle">Hook HTTP: Tắt</span>
+              <button id="clearPacketsBtn" type="button" class="btn btn-ghost btn-sm" title="Xóa danh sách gói tin đã bắt">
+                🗑️ Xóa gói
+              </button>
+            </div>
+          </div>
+
+          <div class="search-strip">
+            <input id="packetSearch" type="search" class="input-ctrl input-compact" placeholder="Lọc URL, Method, mã HTTP..." />
+            <span id="packetCountBadge" class="count-pill">0 gói tin</span>
+          </div>
+
+          <div class="packets-split">
+            <div id="packetList" class="packet-list" role="listbox" aria-label="Danh sách gói tin bắt được">
+              <div class="empty-state">Chưa bắt được gói tin nào. Bật nút "📡 Bắt gói tin" rồi gửi JS hoặc thao tác trên App.</div>
+            </div>
+
+            <div class="packet-detail" id="packetDetail">
+              <div class="packet-detail-head">
+                <span id="packetDetailTitle" class="detail-title">Chi tiết gói tin đã chọn</span>
+                <div class="inline-row">
+                  <button id="replayFromAppBtn" type="button" class="btn btn-secondary btn-xs" disabled title="Gửi lại gói tin từ bên trong ứng dụng đang móc">
+                    🔁 Gửi lại từ App
+                  </button>
+                  <button id="replayFromPcBtn" type="button" class="btn btn-ghost btn-xs" disabled title="Gửi lại gói tin từ máy tính PC">
+                    💻 Gửi lại từ PC
+                  </button>
+                </div>
+              </div>
+              <pre id="packetDetailBody" class="code-viewer">Chọn một gói tin ở danh sách trên để xem đầy đủ Request/Response Headers &amp; Body.</pre>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- ===================================================================== -->
+      <!-- 4. BẢNG NHẬT KÝ BÁO CÁO TRẠNG THÁI TOOLS THEO THỜI GIAN THỰC          -->
+      <!-- ===================================================================== -->
+      <section class="panel panel-tools-log" aria-labelledby="toolsStatusHeading">
+        <div class="panel-head">
+          <div>
+            <h2 id="toolsStatusHeading" class="panel-title">4. Bảng Nhật Ký Báo Cáo Trạng Thái Tools Theo Thời Gian Thực</h2>
+            <p class="panel-sub">Số liệu đo trực tiếp từ máy chủ, WebSocket, Frida Bridge và System Logger — 100% trung thực, không bịa</p>
+          </div>
+          <div class="panel-head-actions">
+            <span id="lastProbeBadge" class="muted-text">Chu kỳ kiểm tra: 10s</span>
+            <select id="toolLogLevelFilter" class="input-ctrl input-compact" aria-label="Lọc mức độ log hệ thống">
+              <option value="all">Mọi mức độ</option>
+              <option value="INFO">INFO</option>
+              <option value="WARN">WARN</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+            <input id="toolLogSearch" type="search" class="input-ctrl input-compact" placeholder="Tìm trong nhật ký tools..." />
+            <button id="clearSystemLogsBtn" type="button" class="btn btn-ghost btn-sm">🗑️ Xóa log</button>
+          </div>
+        </div>
+
+        <div class="tools-grid">
+          <!-- Bảng trạng thái đo thật của từng Tool -->
+          <div class="table-wrap">
+            <table class="status-table">
+              <thead>
+                <tr>
+                  <th>Công cụ / Thành phần</th>
+                  <th>Trạng thái thật</th>
+                  <th>Thông số đo được</th>
+                  <th>Cập nhật</th>
+                </tr>
+              </thead>
+              <tbody id="toolsStatusBody">
+                <tr>
+                  <td colspan="4" class="muted-text">Đang lấy trạng thái thực tế từ máy chủ...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Nhật ký sự kiện hệ thống thời gian thực -->
+          <div class="table-wrap log-table-wrap">
+            <table class="status-table log-table">
+              <thead>
+                <tr>
+                  <th>Giờ</th>
+                  <th>Mức</th>
+                  <th>Vị trí / Trace</th>
+                  <th>Nội dung báo cáo từ máy chủ</th>
+                </tr>
+              </thead>
+              <tbody id="systemLogsBody">
+                <tr>
+                  <td colspan="4" class="muted-text">Đang tải nhật ký hệ thống từ /api/v1/system-logs...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="toastRoot" class="toast-root" aria-live="polite"></div>
+    <script type="module" src="/js-console.mjs"></script>
+  </body>
+</html>
+

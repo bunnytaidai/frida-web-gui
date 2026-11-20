@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trạm Điều Khiển Frida v7.0 — Phân Tích &amp; Kiểm Thử Ứng Dụng iOS Thực Tế</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="studio-shell">
+      <!-- ===================================================================== -->
+      <!-- 1. THANH ĐIỀU KHIỂN ĐỈNH (TOP COMMAND BAR — GỌN SẠCH, KHÔNG TRÙNG LẶP) -->
+      <!-- ===================================================================== -->
+      <header class="topbar" role="banner">
+        <div class="brand-box">
+          <div class="brand-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div>
+            <div class="brand-row">
+              <h1 class="brand-title">Trạm Điều Khiển Frida</h1>
+              <span class="version-pill" id="appVersionPill">v7.0.0.0</span>
+              <button
+                id="toggleGuideBtn"
+                type="button"
+                class="btn-guide-toggle"
+                aria-expanded="true"
+                title="Ẩn hoặc hiện khung hướng dẫn nhanh 3 bước cho người mới"
+              >
+                📘 Hướng dẫn nhanh
+              </button>
+              <a
+                href="/js-console.html"
+                class="btn-guide-toggle"
+                style="text-decoration: none"
+                title="Mở Bảng Điều Khiển Chuyên Gửi JS Frida (Kết nối, Móc App, Trả lời Server, Bắt gói tin & Nhật ký Tools)"
+              >
+                ⚡ Bảng Gửi JS Frida
+              </a>
+            </div>
+            <p class="ws-status">
+              <span id="wsDot" class="status-dot dot-offline"></span>
+              <span id="wsStatusText">Đang đồng bộ kênh thời gian thực...</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="toolbar-controls">
+          <!-- Chọn thiết bị Frida thực thi -->
+          <div class="ctrl-item">
+            <label for="deviceSelect" class="ctrl-label">
+              <span class="step-badge">1</span> Thiết bị thực thi Frida
+            </label>
+            <div class="ctrl-row">
+              <select id="deviceSelect" class="input-el select-device" aria-label="Chọn thiết bị kết nối Frida">
+                <option value="">Đang dò thiết bị...</option>
+              </select>
+              <button
+                id="refreshAllBtn"
+                type="button"
+                class="btn btn-icon"
+                title="Quét lại danh sách thiết bị và ứng dụng"
+                aria-label="Làm mới thiết bị và ứng dụng"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <polyline points="21 3 21 9 15 9" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Chọn Ứng dụng / Tiến trình mục tiêu -->
+          <div class="ctrl-item ctrl-target">
+            <label for="targetSelect" class="ctrl-label">
+              <span class="step-badge">2</span> Ứng dụng / Tiến trình mục tiêu
+            </label>
+            <div class="ctrl-row">
+              <input
+                id="targetFilter"
+                type="search"
+                class="input-el input-filter"
+                placeholder="Gõ lọc tên App / Bundle ID..."
+                autocomplete="off"
+              />
+              <select id="targetSelect" class="input-el select-target" aria-label="Chọn ứng dụng mục tiêu">
+                <option value="">Đang tải danh sách ứng dụng...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Chế độ mở App -->
+          <div class="ctrl-item">
+            <span class="ctrl-label">Cách gắn vào App</span>
+            <div class="segmented" role="group" aria-label="Chế độ mở ứng dụng">
+              <button
+                type="button"
+                class="seg-btn active"
+                data-mode="auto"
+                title="Khuyên dùng: App đang mở thì gắn luôn; App đang tắt thì tự bật lên màn hình iPhone"
+              >
+                Tự động
+              </button>
+              <button
+                type="button"
+                class="seg-btn"
+                data-mode="attach"
+                title="Chỉ gắn vào tiến trình đang chạy sẵn trong RAM"
+              >
+                Đang mở
+              </button>
+              <button
+                type="button"
+                class="seg-btn"
+                data-mode="spawn"
+                title="Khởi động lại ứng dụng từ đầu để bắt các hàm chạy lúc vừa mở"
+              >
+                Mở mới
+              </button>
+            </div>
+          </div>
+
+          <!-- Cụm nút hành động chính (1 Primary CTA duy nhất) -->
+          <div class="ctrl-item ctrl-actions">
+            <span class="ctrl-label"><span class="step-badge step-badge-cta">3</span> Thực thi</span>
+            <div class="ctrl-row">
+              <button id="runJsBtn" type="button" class="btn btn-primary" title="Biên dịch &amp; chạy mã JS (Ctrl + Enter)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                <span>Chạy mã JS</span>
+              </button>
+              <button
+                id="stopSessionBtn"
+                type="button"
+                class="btn btn-danger-outline"
+                disabled
+                title="Ngắt phiên Frida hiện tại (Chỉ bật khi đang có phiên chạy)"
+              >
+                ⏹ Dừng phiên
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===================================================================== -->
+      <!-- 1B. HƯỚNG DẪN NHANH CHO NGƯỜI MỚI & DẢI TRẠNG THÁI TRUNG THỰC 100%    -->
+      <!-- ===================================================================== -->
+      <section id="newbieGuidePanel" class="guide-banner" aria-label="Hướng dẫn sử dụng nhanh 3 bước">
+        <div class="guide-banner-head">
+          <div class="guide-banner-title">
+            <span class="guide-pill">QUY TRÌNH 3 BƯỚC CHUẨN</span>
+            <span>
+              <strong>Bước 1:</strong> Kiểm tra cáp USB xanh ở ô <em>Thiết bị</em> ➔
+              <strong>Bước 2:</strong> Chọn đúng App/Game cần soi ➔
+              <strong>Bước 3:</strong> Bật <em>Công tắc 1 chạm</em> hoặc bấm <strong>▶ Chạy ngay</strong> trên mẫu JS!
+            </span>
+          </div>
+          <button id="closeGuideBtn" type="button" class="btn-mini">Ẩn hướng dẫn</button>
+        </div>
+        <div class="guide-glossary">
+          <span><strong>⚡ Mẫu trả ngay:</strong> Bấm chạy là trả JSON tức thì vào Hộp trả lời &amp; Nhật ký.</span>
+          <span><strong>📡 Mẫu bắt sóng:</strong> Gắn đầu dò xong bạn cần chạm mở màn hình Mua gói / Đăng nhập trên iPhone để thu gói tin thật.</span>
+          <span><strong>🔗 Liên thông khép kín:</strong> Bắt gói / Chạy JS ➔ Giải mã JWS StoreKit 2 ➔ Lưu ID 1 chạm ➔ Chèn biến <code>{{khóa}}</code> gửi lại!</span>
+        </div>
+      </section>
+
+      <div id="actionStatusBanner" class="action-status-banner status-idle" role="status" aria-live="polite">
+        <span id="actionStatusIcon" class="action-status-icon">💡</span>
+        <div class="action-status-body">
+          <strong id="actionStatusTitle">Sẵn sàng kết nối thực tế:</strong>
+          <span id="actionStatusText">
+            Mọi số liệu kết nối, gói tin HTTP, chữ ký JWS và nhật ký dưới đây đều đọc trực tiếp 100% từ thiết bị thật — không giả lập.
+          </span>
+        </div>
+      </div>
+
+      <!-- ===================================================================== -->
+      <!-- 2. DẢI 5 THẺ THÔNG SỐ THIẾT BỊ & PHIÊN THỜI GIAN THỰC                -->
+      <!-- ===================================================================== -->
+      <section class="telemetry-strip" aria-label="Thông số thiết bị và phiên Frida trực tiếp">
+        <article class="metric-card">
+          <header class="metric-head">
+            <span>THIẾT BỊ &amp; HỆ ĐIỀU HÀNH</span>
+            <span id="teleJailbreakBadge" class="pill pill-neutral">Đang đo...</span>
+          </header>
+          <div id="teleDeviceName" class="metric-val">Chưa chọn thiết bị</div>
+          <div id="teleDeviceMeta" class="metric-sub">Cắm cáp USB iPhone hoặc chọn Windows PC</div>
+        </article>
+
+        <article class="metric-card">
+          <header class="metric-head">
+            <span>MÁY CHỦ FRIDA &amp; CẦU NỐI</span>
+            <span id="teleTunnelBadge" class="pill pill-neutral">Chờ kiểm tra</span>
+          </header>
+          <div id="teleTunnelPort" class="metric-val">Cổng 27042</div>
+          <div id="teleTunnelSub" class="metric-sub">Tự động bắc cầu iproxy qua cáp sạc USB</div>
+        </article>
+
+        <article class="metric-card">
+          <header class="metric-head">
+            <span>PIN &amp; BỘ NHỚ TRỐNG</span>
+            <span id="teleBatteryBadge" class="pill pill-neutral">--</span>
+          </header>
+          <div id="teleBatteryText" class="metric-val">--%</div>
+          <div id="teleDiskText" class="metric-sub">Đọc trực tiếp phần cứng thiết bị</div>
+        </article>
+
+        <article class="metric-card">
+          <header class="metric-head">
+            <span>ỨNG DỤNG ĐANG HIỆN TRÊN MÁY</span>
+            <span id="teleAppsCountBadge" class="pill pill-info">0 App</span>
+          </header>
+          <div id="teleFrontApp" class="metric-val">Chưa xác định</div>
+          <div id="teleInstalledCount" class="metric-sub">Đã cài: -- • Tiến trình: --</div>
+        </article>
+
+        <article class="metric-card metric-card-session">
+          <header class="metric-head">
+            <span>PHIÊN GẮN MÃ HIỆN TẠI</span>
+            <span id="teleSessionPidBadge" class="pill pill-neutral">Chưa gắn</span>
+          </header>
+          <div id="teleSessionTarget" class="metric-val">Đang nghỉ</div>
+          <div id="teleSessionUptime" class="metric-sub">Thời gian chạy: 00:00:00 • 0 sự kiện thật</div>
+        </article>
+      </section>
+
+      <!-- ===================================================================== -->
+      <!-- 3. THANH ĐIỀU HƯỚNG 6 KHÔNG GIAN LÀM VIỆC DUY NHẤT (KHÔNG TRÙNG LẶP)  -->
+      <!-- ===================================================================== -->
+      <nav class="workspace-nav" id="workspaceNav" aria-label="6 không gian chức năng chính">
+        <button type="button" class="ws-nav-btn" data-ws="connect">
+          <span class="ws-num">①</span>
+          <span class="ws-text">
+            <strong>Kết Nối &amp; Frida SV</strong>
+            <small>3 kênh Frida • 4 cầu nối • Tự sửa lỗi</small>
+          </span>
+          <span id="navBadgeConnect" class="nav-pill">USB</span>
+        </button>
+
+        <button type="button" class="ws-nav-btn" data-ws="apps">
+          <span class="ws-num">②</span>
+          <span class="ws-text">
+            <strong>Ứng Dụng &amp; Hồ Sơ Bảo Mật</strong>
+            <small>Chọn App • Cờ Mach-O • ATS &amp; URL Scheme</small>
+          </span>
+          <span id="navBadgeApps" class="nav-pill">0</span>
+        </button>
+
+        <button type="button" class="ws-nav-btn active" data-ws="studio">
+          <span class="ws-num">③</span>
+          <span class="ws-text">
+            <strong>Trạm Mã JS &amp; Công Tắc</strong>
+            <small>6 công tắc 1 chạm • 21 mẫu + Code riêng</small>
+          </span>
+          <span id="navBadgeStudio" class="nav-pill">21 mẫu</span>
+        </button>
+
+        <button type="button" class="ws-nav-btn" data-ws="packets">
+          <span class="ws-num">④</span>
+          <span class="ws-text">
+            <strong>Bắt Gói, Giải Mã &amp; Sổ ID</strong>
+            <small>Sửa gửi lại • StoreKit JWS • Lưu {{biến}}</small>
+          </span>
+          <span id="navBadgePackets" class="nav-pill">0 gói</span>
+        </button>
+
+        <button type="button" class="ws-nav-btn" data-ws="magnifier">
+          <span class="ws-num">⑤</span>
+          <span class="ws-text">
+            <strong>Kính Lúp Hàm, RAM &amp; RPC</strong>
+            <small>Dò hàm • ObjC/Native • Gọi hàm từ xa</small>
+          </span>
+          <span id="navBadgeMagnifier" class="nav-pill">Frida 17</span>
+        </button>
+
+        <button type="button" class="ws-nav-btn" data-ws="sandbox">
+          <span class="ws-num">⑥</span>
+          <span class="ws-text">
+            <strong>Tệp Sandbox &amp; Két Sắt</strong>
+            <small>Xem Plist/DB • UserDefaults &amp; Keychain</small>
+          </span>
+          <span id="navBadgeSandbox" class="nav-pill">iOS</span>
+        </button>
+      </nav>
+
+      <!-- Cảnh báo tự động khi người dùng chọn Windows Local PC thay vì iPhone -->
+      <div id="platformGuardBanner" class="platform-guard-banner" hidden>
+        <span>🖥️ <strong>Đang chọn Máy tính Windows (Local PC):</strong></span>
+        <span>
+          Các tính năng dành riêng cho hệ điều hành iOS (<em>Công tắc ObjC, Hồ sơ Info.plist, Tệp Sandbox, Két sắt Keychain</em>) đã được khóa rõ ràng để tránh báo lỗi giả. Bạn vẫn dùng được đầy đủ <strong>Soạn mã JS, Thư viện Native (.dll), Gọi hàm RPC, Gửi gói HTTP từ PC, Giải mã JWS &amp; Sổ lưu ID</strong>!
+        </span>
+      </div>
+
+      <!-- ===================================================================== -->
+      <!-- 4. BỐ CỤC CHÍNH 2 CỘT: KHUNG CHỨC NĂNG TRÁI + NHẬT KÝ ĐÔI CỘT PHẢI   -->
+      <!-- ===================================================================== -->
+      <main class="studio-main">
+        <div class="workspace-stage">
+          <!-- ================================================================= -->
+          <!-- KHÔNG GIAN ①: QUẢN LÝ KẾT NỐI ĐA KÊNH & BÁC SĨ FRIDA SERVER       -->
+          <!-- ================================================================= -->
+          <section id="wsPaneConnect" class="ws-pane" hidden aria-label="Không gian 1: Kết nối và Máy chủ Frida">
+            <div class="pane-card">
+              <div class="section-header">
+                <div>
+                  <h2 class="section-title">① Quản Lý Kết Nối Thực Tế &amp; Chuyển Đổi Thiết Bị Frida</h2>
+                  <p class="section-desc">
+                    Tách bạch rõ <strong>3 Kênh Thiết Bị Thực Thi Frida</strong> (có nút chuyển kênh thật) và <strong>4 Cầu Nối Phụ Trợ</strong> (chỉ đo trạng thái cổng thật, không hiện nút chuyển giả).
+                  </p>
+                </div>
+                <div class="header-actions">
+                  <button id="probeAllChannelsBtn" type="button" class="btn btn-secondary">
+                    🔄 Đo lại toàn bộ cổng thật
+                  </button>
+                  <button id="quickSwitchUsbBtn" type="button" class="btn btn-primary">
+                    🔌 Ưu tiên Cáp USB iPhone
+                  </button>
+                </div>
+              </div>
+
+              <!-- NHÓM A: 3 KÊNH THIẾT BỊ THỰC THI FRIDA -->
+              <div class="sub-block">
+                <div class="sub-block-head">
+                  <span class="badge-group badge-group-green">NHÓM A • CHUYỂN ĐƯỢC THIẾT BỊ FRIDA</span>
+                  <strong>3 Kênh Thực Thi Kịch Bản Frida Trực Tiếp</strong>
+                </div>
+                <div id="fridaChannelsGrid" class="channels-grid-3"></div>
+
+                <!-- Hộp kết nối / ngắt Wi-Fi gọn trong Không gian ① (Chỉ hiện nút Ngắt khi đang có thiết bị Wi-Fi) -->
+                <div class="wifi-inline-box">
+                  <div class="wifi-inline-title">
+                    <strong>📶 Cấu hình kết nối Frida qua mạng Wi-Fi (Cổng 27042):</strong>
+                    <span class="muted-note">Dùng khi iPhone và máy tính chung mạng Wi-Fi mà không cắm cáp sạc.</span>
+                  </div>
+                  <div class="wifi-inline-controls">
+                    <input
+                      id="wifiAddressInput"
+                      type="text"
+                      class="input-el input-sm mono-input"
+                      placeholder="Nhập IP:Cổng iPhone (VD: 192.168.1.50:27042)"
+                    />
+                    <input
+                      id="wifiLabelInput"
+                      type="text"
+                      class="input-el input-sm"
+                      placeholder="Tên gợi nhớ (Tùy chọn)"
+                    />
+                    <button id="connectWifiBtn" type="button" class="btn btn-accent-sm">
+                      + Kết nối &amp; Chuyển sang Wi-Fi
+                    </button>
+                    <button id="disconnectWifiBtn" type="button" class="btn btn-danger-sm" hidden>
+                      ⏹ Ngắt thiết bị Wi-Fi đang kết nối
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- NHÓM B: 4 CẦU NỐI PHỤ TRỢ & KIỂM ĐỊNH MẠNG -->
+              <div class="sub-block">
+                <div class="sub-block-head">
+                  <span class="badge-group badge-group-blue">NHÓM B • CẦU NỐI PHỤ TRỢ (CHỈ BÁO TRẠNG THÁI THẬT)</span>
+                  <strong>4 Dịch Vụ Bổ Trợ Mở App, Đồng Bộ Gói &amp; Kiểm Định Proxy</strong>
+                </div>
+                <div id="auxBridgesGrid" class="channels-grid-4"></div>
+
+                <div class="aux-actions-bar">
+                  <div class="aux-proxy-group">
+                    <label for="vpnProxyInput" class="ctrl-label">Địa chỉ Proxy kiểm định TLS / mitmproxy:</label>
+                    <input
+                      id="vpnProxyInput"
+                      type="text"
+                      class="input-el input-sm mono-input"
+                      value="127.0.0.1:8080"
+                      placeholder="127.0.0.1:8080"
+                    />
+                    <button id="probeVpnBtn" type="button" class="btn btn-secondary btn-sm">
+                      🔍 Lưu &amp; Đo cổng Proxy
+                    </button>
+                  </div>
+
+                  <div class="aux-rabbit-group">
+                    <button
+                      id="syncRabbitBtn"
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      disabled
+                      title="Chỉ mở khóa khi cổng 127.0.0.1:8765 của RabbitUltrad đang hoạt động"
+                    >
+                      🐰 Đồng bộ gói từ cổng 8765 (Đang tắt)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- NHÓM C: BÁC SĨ CHẨN ĐOÁN 4 BƯỚC & TỰ SỬA CẦU NỐI FRIDA SERVER -->
+              <div class="sub-block">
+                <div class="section-header compact-header">
+                  <div>
+                    <h3 class="sub-title">🩺 Bác Sĩ Kiểm Tra 4 Bước &amp; Tự Động Khởi Động Lại Frida Server</h3>
+                    <p class="section-desc">
+                      Nếu rút cắm lại cáp sạc làm gián đoạn cổng <code>27042</code>, bấm nút bên phải để hệ thống làm mới cầu nối <code>iproxy</code> và gọi SSH bật lại <code>/var/jb/usr/sbin/frida-server</code>.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <button id="runHealthCheckBtn" type="button" class="btn btn-secondary btn-sm">
+                      🔍 Đo sức khỏe 4 bước
+                    </button>
+                    <button id="runRepairBtn" type="button" class="btn btn-primary btn-sm">
+                      🛠️ Tự sửa cầu nối &amp; Bật lại Frida SV
+                    </button>
+                  </div>
+                </div>
+
+                <div id="healthSummaryBanner" class="health-banner health-idle">
+                  <div class="health-banner-main">
+                    <span id="healthBadge" class="badge-lv lv-info">CHỜ ĐO</span>
+                    <strong id="healthSummaryText">Bấm "Đo sức khỏe 4 bước" để kiểm tra trực tiếp phiên bản và độ trễ máy chủ Frida.</strong>
+                  </div>
+                  <div id="healthLatencyMeta" class="mono-meta">SDK PC: 17.26.2 • Máy chủ: -- • Độ trễ: --</div>
+                </div>
+
+                <div id="healthChecksGrid" class="checks-grid-4"></div>
+                <pre id="repairStepsPre" class="code-preview-box" hidden></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================================================================= -->
+          <!-- KHÔNG GIAN ②: DANH SÁCH ỨNG DỤNG & HỒ SƠ BẢO MẬT OWASP MASTG       -->
+          <!-- ================================================================= -->
+          <section id="wsPaneApps" class="ws-pane" hidden aria-label="Không gian 2: Ứng dụng và Hồ sơ bảo mật">
+            <div class="pane-stack">
+              <!-- KHỐI 2A: BẢNG CHỌN ỨNG DỤNG TRỰC QUAN -->
+              <div class="pane-card">
+                <div class="section-header">
+                  <div>
+                    <h2 class="section-title">② Danh Sách Ứng Dụng &amp; Tiến Trình Trên Thiết Bị</h2>
+                    <p class="section-desc">
+                      Bấm <strong>🎯 Chọn mục tiêu</strong> để khóa ứng dụng, <strong>🛡️ Soi Hồ Sơ Bảo Mật</strong> để đọc cấu hình nhị phân hoặc <strong>📡 Bắt gói ngay</strong> để thu lưu lượng mạng.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <input
+                      id="appSearchInput"
+                      type="search"
+                      class="input-el input-sm"
+                      placeholder="Tìm tên App, Bundle ID, PID..."
+                    />
+                    <button id="refreshAppsBtn" type="button" class="btn btn-secondary btn-sm">↻ Tải lại App</button>
+                  </div>
+                </div>
+
+                <div class="filter-pills-bar" role="group" aria-label="Lọc nhóm ứng dụng">
+                  <button type="button" class="pill-btn active" data-appfilter="user">📱 App cài thêm (User Apps)</button>
+                  <button type="button" class="pill-btn" data-appfilter="running">🟢 Đang mở trên máy</button>
+                  <button type="button" class="pill-btn" data-appfilter="all">📦 Tất cả ứng dụng</button>
+                  <button type="button" class="pill-btn" data-appfilter="daemons">⚙️ Tiến trình nền (PID)</button>
+                </div>
+
+                <div class="table-scroll max-h-300">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Tên ứng dụng</th>
+                        <th>Mã định danh (Bundle ID / PID)</th>
+                        <th>Trạng thái hiện tại</th>
+                        <th>Thao tác nhanh 1 chạm</th>
+                      </tr>
+                    </thead>
+                    <tbody id="appMgrTableBody">
+                      <tr>
+                        <td colspan="4" class="empty-cell">Đang tải danh sách ứng dụng từ thiết bị...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- KHỐI 2B: HỒ SƠ ỨNG DỤNG & KIỂM TOÁN NHỊ PHÂN OWASP MASTG -->
+              <div class="pane-card">
+                <div class="section-header">
+                  <div>
+                    <h3 class="sub-title">🛡️ Hồ Sơ Ứng Dụng, Biên Lai StoreKit &amp; Kiểm Toán Nhị Phân (OWASP MASTG)</h3>
+                    <p class="section-desc">
+                      Đọc chỉ đọc an toàn: Cờ bảo vệ tệp thực thi <code>Mach-O 64-bit</code> (<code>PIE</code>, <code>ARC</code>, <code>Stack Canary</code>, <code>CryptID</code>), môi trường <code>Sandbox / TestFlight</code>, tách gọn thẻ <code>URL Schemes</code> và ngoại lệ mạng <code>ATS</code>.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <button id="inspectPostureBtn" type="button" class="btn btn-primary btn-sm">
+                      🛡️ Quét Hồ Sơ &amp; Bảo Mật App Đang Chọn
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 4 Thẻ Cờ Bảo Vệ Nhị Phân -->
+                <div id="hardeningCardsGrid" class="hardening-grid">
+                  <div class="mini-stat-card">
+                    <span class="mini-stat-label">Ngẫu nhiên địa chỉ (PIE / ASLR)</span>
+                    <strong id="flagPieVal" class="mini-stat-val">Chưa quét</strong>
+                    <small class="mini-stat-hint">Chống đoán địa chỉ bộ nhớ RAM</small>
+                  </div>
+                  <div class="mini-stat-card">
+                    <span class="mini-stat-label">Quản lý bộ nhớ tự động (ARC)</span>
+                    <strong id="flagArcVal" class="mini-stat-val">Chưa quét</strong>
+                    <small class="mini-stat-hint">Chống lỗi giải phóng con trỏ</small>
+                  </div>
+                  <div class="mini-stat-card">
+                    <span class="mini-stat-label">Chốt chặn tràn ngăn xếp (Canary)</span>
+                    <strong id="flagCanaryVal" class="mini-stat-val">Chưa quét</strong>
+                    <small class="mini-stat-hint">Kiểm tra __stack_chk_guard</small>
+                  </div>
+                  <div class="mini-stat-card">
+                    <span class="mini-stat-label">Mã hóa FairPlay (CryptID)</span>
+                    <strong id="flagCryptVal" class="mini-stat-val">Chưa quét</strong>
+                    <small class="mini-stat-hint">0 = Đã giải mã • 1 = Gốc App Store</small>
+                  </div>
+                </div>
+
+                <!-- Lưới Huy Hiệu Công Nghệ, StoreKit, URL Schemes & ATS -->
+                <div class="posture-tags-grid">
+                  <div class="posture-box">
+                    <span class="posture-box-title">🛒 Môi trường Biên lai StoreKit &amp; Thanh toán</span>
+                    <div id="postureStorekitBody" class="posture-box-content muted-note">
+                      Bấm "Quét Hồ Sơ &amp; Bảo Mật" để kiểm tra ứng dụng đang dùng sandboxReceipt (TestFlight) hay App Store.
+                    </div>
+                  </div>
+
+                  <div class="posture-box">
+                    <span class="posture-box-title">🧩 Công nghệ Framework &amp; Tweak /var/jb phát hiện</span>
+                    <div id="postureFrameworksBody" class="pills-wrap muted-note">Chưa có dữ liệu quét.</div>
+                  </div>
+
+                  <div class="posture-box">
+                    <span class="posture-box-title">🔗 Liên kết mở nhanh đã đăng ký (URL Schemes sạch gọn)</span>
+                    <div id="postureUrlSchemesBody" class="pills-wrap muted-note">Chưa có dữ liệu quét.</div>
+                  </div>
+
+                  <div class="posture-box">
+                    <span class="posture-box-title">🌐 Chính sách bảo mật truyền tải mạng (ATS)</span>
+                    <div id="postureAtsBody" class="posture-box-content muted-note">Chưa có dữ liệu quét.</div>
+                  </div>
+                </div>
+
+                <!-- Bảng chi tiết đường dẫn & định danh -->
+                <div class="table-scroll">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 34%">Hạng mục Hồ sơ Ứng dụng</th>
+                        <th>Giá trị thực tế đọc từ tiến trình</th>
+                      </tr>
+                    </thead>
+                    <tbody id="manifestTableBody">
+                      <tr>
+                        <td colspan="2" class="empty-cell">
+                          Chọn ứng dụng và bấm <strong>🛡️ Quét Hồ Sơ &amp; Bảo Mật App Đang Chọn</strong> để hiển thị chi tiết.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================================================================= -->
+          <!-- KHÔNG GIAN ③: TRẠM MÃ JS, MẪU CỦA TÔI & 6 CÔNG TẮC 1 CHẠM         -->
+          <!-- ================================================================= -->
+          <section id="wsPaneStudio" class="ws-pane" aria-label="Không gian 3: Trạm nạp mã JS và Công tắc 1 chạm">
+            <div class="pane-stack">
+              <!-- KHỐI 3A: 6 CÔNG TẮC BẬT / TẮT TÍNH NĂNG 1 CHẠM (iOS ObjC) -->
+              <div class="pane-card compact-card">
+                <div class="section-header compact-header">
+                  <div>
+                    <h2 class="section-title">⚡ 6 Công Tắc Theo Dõi Tự Động 1 Chạm (Không Cần Viết Code)</h2>
+                    <p class="section-desc">
+                      Bấm để BẬT/TẮT ngay trên ứng dụng iPhone đang chọn; trạng thái công tắc được giữ nguyên kể cả khi bạn nạp nóng thêm mã JS mới.
+                    </p>
+                  </div>
+                  <span id="activeSwitchesCountPill" class="pill pill-neutral">Đang bật: 0 / 6</span>
+                </div>
+
+                <div class="switches-grid-6" id="featureSwitchesGrid">
+                  <button type="button" class="sw-card" data-switch-key="httpCapture" data-ios-only="1">
+                    <div class="sw-top">
+                      <strong>📡 Bắt Gói HTTP</strong>
+                      <span class="sw-pill">TẮT</span>
+                    </div>
+                    <small>Thu trọn Request + Hộp trả lời về Không gian ④</small>
+                  </button>
+
+                  <button type="button" class="sw-card" data-switch-key="storekitObserver" data-ios-only="1">
+                    <div class="sw-top">
+                      <strong>🛒 Giao Dịch StoreKit</strong>
+                      <span class="sw-pill">TẮT</span>
+                    </div>
+                    <small>Theo dõi hỏi giá &amp; mua gói Sandbox / TestFlight</small>
+                  </button>
+
+                  <button type="button" class="sw-card" data-switch-key="authObserver" data-ios-only="1">
+                    <div class="sw-top">
+                      <strong>🔐 Đăng Nhập &amp; FaceID</strong>
+                      <span class="sw-pill">TẮT</span>
+                    </div>
+                    <small>Phát hiện gọi API đăng nhập, Token &amp; Sinh trắc</small>
+                  </button>
+
+                  <button type="button" class="sw-card" data-switch-key="storageObserver" data-ios-only="1">
+                    <div class="sw-top">
+                      <strong>💾 Lưu NSUserDefaults</strong>
+                      <span class="sw-pill">TẮT</span>
+                    </div>
+                    <small>Báo ngay khi App ghi cờ cấu hình / trạng thái mới</small>
+                  </button>
+
+                  <button type="button" class="sw-card" data-switch-key="fileAccessObserver" data-ios-only="1">
+                    <div class="sw-top">
+                      <strong>📂 Đọc Tệp Sandbox</strong>
+                      <span class="sw-pill">TẮT</span>
+                    </div>
+                    <small>Theo dõi khi App mở tệp .plist, .json, .sqlite</small>
+                  </button>
+
+                  <button type="button" class="sw-card" data-switch-key="uiScreenObserver" data-ios-only="1">
+                    <div class="sw-top">
+                      <strong>📱 Chuyển Màn Hình iOS</strong>
+                      <span class="sw-pill">TẮT</span>
+                    </div>
+                    <small>Hiện tên lớp UIViewController mỗi khi đổi trang</small>
+                  </button>
+                </div>
+              </div>
+
+              <!-- KHỐI 3B: LƯỚI 2 CỘT — KHO MẪU JS (TRÁI) & TRÌNH SOẠN CODE (PHẢI) -->
+              <div class="studio-two-col">
+                <!-- Cột trái: Kho 21 mẫu mặc định + Trạm Mẫu JS Của Tôi -->
+                <aside class="pane-card snippets-column">
+                  <div class="snippets-head">
+                    <div>
+                      <h3 class="sub-title">📚 Kho Mẫu JS (<span id="snippetTotalCount">21</span>)</h3>
+                      <span id="customSnippetsMeta" class="muted-note">0 mẫu riêng của tôi</span>
+                    </div>
+                    <button id="openNewSnippetBtn" type="button" class="btn btn-accent-sm">
+                      + Lưu mẫu của tôi
+                    </button>
+                  </div>
+
+                  <div class="snippets-filters">
+                    <input
+                      id="snippetSearchInput"
+                      type="search"
+                      class="input-el input-sm"
+                      placeholder="Tìm mẫu (VD: storekit, biên lai, mạng, pie...)"
+                    />
+                    <select id="snippetCategorySelect" class="input-el input-sm" aria-label="Lọc chuyên đề mẫu JS">
+                      <option value="ALL">Tất cả chuyên đề</option>
+                    </select>
+                  </div>
+
+                  <!-- Hộp Lưu / Sửa Mẫu JS Của Tôi (Lưu bền vững vào data/custom-snippets.json) -->
+                  <div id="snippetFormBox" class="custom-snippet-form" hidden>
+                    <div class="form-head-row">
+                      <strong id="snippetFormHeading">💾 Lưu Mẫu JS Của Tôi</strong>
+                      <div class="mini-btn-row">
+                        <button id="pullEditorCodeBtn" type="button" class="btn-mini">📋 Lấy từ khung soạn</button>
+                        <button id="importJsFileBtn" type="button" class="btn-mini">📂 Nạp file .js</button>
+                        <input id="snippetFileInput" type="file" accept=".js,.mjs,.ts,.txt" hidden />
+                      </div>
+                    </div>
+                    <input id="snippetEditIdInput" type="hidden" value="" />
+                    <input
+                      id="snippetTitleInput"
+                      type="text"
+                      class="input-el input-sm"
+                      placeholder="Tên mẫu gợi nhớ (VD: Soi gói VIP TestFlight của tôi)"
+                    />
+                    <div class="two-equal-inputs">
+                      <select id="snippetCategoryInput" class="input-el input-sm">
+                        <option value="8. Mẫu JS Của Tôi">8. Mẫu JS Của Tôi</option>
+                        <option value="7. StoreKit & Sandbox TestFlight">7. StoreKit &amp; Sandbox TestFlight</option>
+                        <option value="2. Mạng & Truyền tin">2. Mạng &amp; Truyền tin</option>
+                        <option value="6. Điều khiển từ xa">6. Điều khiển từ xa</option>
+                      </select>
+                      <select id="snippetRunTypeInput" class="input-el input-sm">
+                        <option value="instant">⚡ Bấm trả kết quả ngay</option>
+                        <option value="listener">📡 Gắn chờ sự kiện trên máy</option>
+                      </select>
+                    </div>
+                    <input
+                      id="snippetDescInput"
+                      type="text"
+                      class="input-el input-sm"
+                      placeholder="Ghi chú tác dụng ngắn gọn (Tùy chọn)"
+                    />
+                    <textarea
+                      id="snippetCodeInput"
+                      rows="5"
+                      class="input-el mono-textarea"
+                      placeholder="// Dán mã JavaScript của bạn tại đây..."
+                    ></textarea>
+                    <div class="form-actions-row">
+                      <button id="confirmSaveSnippetBtn" type="button" class="btn btn-secondary btn-sm">💾 Lưu vào kho</button>
+                      <button id="saveAndRunSnippetBtn" type="button" class="btn btn-primary btn-sm">▶ Lưu &amp; Chạy ngay</button>
+                      <button id="cancelSnippetFormBtn" type="button" class="btn-mini">Đóng</button>
+                    </div>
+                  </div>
+
+                  <div id="snippetCardsList" class="snippet-cards-scroll"></div>
+                </aside>
+
+                <!-- Cột phải: Khung soạn mã JS/TS + Thanh chèn ID + Xem nhanh kết quả -->
+                <div class="pane-card editor-column">
+                  <div class="section-header compact-header">
+                    <div>
+                      <h3 class="sub-title">📝 Khung Soạn Mã Điều Khiển Frida 17 (JavaScript / TypeScript)</h3>
+                      <p class="section-desc">
+                        Tự động biên dịch qua <code>esbuild</code> kèm cầu nối <code>ObjC</code>. Dùng <code>send({...})</code> để đẩy dữ liệu có cấu trúc sang Hộp trả lời, Giải mã JWS &amp; Sổ Lưu ID.
+                      </p>
+                    </div>
+                    <div class="header-actions">
+                      <button id="saveEditorAsCustomBtn" type="button" class="btn btn-secondary btn-sm">
+                        💾 Lưu đoạn code này
+                      </button>
+                      <button id="clearEditorDraftBtn" type="button" class="btn-mini" title="Làm trống khung soạn thảo">
+                        Xóa nháp
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Thanh chèn nhanh các ID đã lưu vào code JS -->
+                  <div id="editorSavedVarsBar" class="vars-pill-bar"></div>
+
+                  <div class="editor-frame">
+                    <div id="lineGutter" class="line-gutter" aria-hidden="true">1</div>
+                    <textarea
+                      id="codeEditor"
+                      class="code-textarea"
+                      spellcheck="false"
+                      autocapitalize="off"
+                      autocomplete="off"
+                      aria-label="Khung soạn mã Frida JavaScript"
+                    >// Bấm "▶ Chạy ngay" trên một mẫu bên trái hoặc viết mã Frida 17 tại đây
+console.log("[+] Xin chào từ tiến trình PID:", Process.id, "| Kiến trúc:", Process.arch);
+send({
+  trangThai: "ket_noi_thanh_cong",
+  pid: Process.id,
+  nenTang: Process.platform,
+  coObjC: typeof ObjC !== "undefined" && Boolean(ObjC.available)
+});</textarea>
+                  </div>
+
+                  <!-- Hộp xem nhanh phản hồi trực tiếp ngay dưới khung code -->
+                  <div class="quick-answer-strip">
+                    <div class="quick-answer-head">
+                      <div>
+                        <strong>📥 Phản hồi mới nhất từ Thiết bị:</strong>
+                        <span id="studioAnswerBadge" class="badge-lv lv-info">CHỜ CHẠY MÃ</span>
+                      </div>
+                      <div class="mini-btn-row">
+                        <button id="decodeStudioAnswerBtn" type="button" class="btn-mini btn-mini-info">
+                          🔓 Giải mã kết quả này
+                        </button>
+                        <button id="openPacketsFromStudioBtn" type="button" class="btn-mini btn-mini-accent">
+                          📬 Mở Trạm Gói Tin &amp; Sổ ID
+                        </button>
+                      </div>
+                    </div>
+                    <pre id="studioQuickAnswerPre" class="quick-answer-pre">// Khi bạn bấm "Chạy mã JS", dữ liệu thật từ hàm send({...}) hoặc lỗi dòng code trên thiết bị sẽ hiện ngay tại đây và bên cột Nhật ký phải.</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================================================================= -->
+          <!-- KHÔNG GIAN ④: BẮT GÓI, SỬA GỬI LẠI, GIẢI MÃ JWS & SỔ LƯU ID       -->
+          <!-- ================================================================= -->
+          <section id="wsPanePackets" class="ws-pane" hidden aria-label="Không gian 4: Bắt gói tin, Giải mã và Sổ lưu ID">
+            <div class="pane-stack">
+              <!-- KHỐI 4A: THANH BẮT GÓI & DANH SÁCH GÓI TIN THỜI GIAN THỰC -->
+              <div class="pane-card">
+                <div class="section-header">
+                  <div>
+                    <h2 class="section-title">④ Trạm Bắt Gói Tin 3 Lớp, Sửa Gửi Lại (Repeater), Giải Mã JWS &amp; Sổ Lưu ID</h2>
+                    <p class="section-desc">
+                      Mọi khâu liên thông trên cùng một mặt phẳng: <strong>Bắt gói từ iPhone</strong> ➔ <strong>Xem Hộp trả lời &amp; Lưu ID 1 chạm</strong> ➔ <strong>Giải mã chữ ký StoreKit 2 JWS</strong> ➔ <strong>Chèn <code>{{biến}}</code> gửi lại</strong>.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <button id="enableHttpCaptureBtn" type="button" class="btn btn-primary btn-sm" data-ios-only="1">
+                      📡 Bật Bắt Gói Tin Trên iPhone
+                    </button>
+                    <button id="newPacketDraftBtn" type="button" class="btn btn-secondary btn-sm">
+                      + Soạn gói mẫu mới
+                    </button>
+                    <button id="genJsHookFromPacketBtn" type="button" class="btn btn-secondary btn-sm" data-ios-only="1">
+                      💉 Sinh JS rình URL đang chọn
+                    </button>
+                  </div>
+                </div>
+
+                <div class="toolbar-subrow">
+                  <input
+                    id="packetSearchInput"
+                    type="search"
+                    class="input-el input-sm flex-1"
+                    placeholder="Lọc gói tin theo đường dẫn URL, phương thức (GET/POST), mã HTTP hoặc từ khóa trong Hộp trả lời..."
+                  />
+                  <button id="clearPacketsBtn" type="button" class="btn-mini btn-mini-danger">🗑️ Xóa danh sách gói</button>
+                </div>
+
+                <div class="table-scroll max-h-220">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 64px">Mã gói</th>
+                        <th style="width: 78px">Lệnh</th>
+                        <th style="width: 92px">Trạng thái</th>
+                        <th>Đường dẫn API &amp; Nguồn thu thực tế</th>
+                        <th style="width: 84px">Độ trễ</th>
+                        <th style="width: 165px">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody id="packetListBody">
+                      <tr>
+                        <td colspan="6" class="empty-cell">
+                          Chưa có gói tin nào. Bấm <strong>📡 Bật Bắt Gói Tin Trên iPhone</strong> rồi thao tác trên điện thoại, hoặc bấm <strong>🚀 Gửi Lại Gói Tin</strong> ở khung bên dưới!
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- KHỐI 4B: CHIA ĐÔI — SỬA & GỬI LẠI GÓI TIN (TRÁI) <-> HỘP TRẢ LỜI THẬT (PHẢI) -->
+              <div class="repeater-split-grid">
+                <!-- Trái: Bộ Sửa & Gửi lại gói tin -->
+                <div class="pane-card">
+                  <div class="compact-head-between">
+                    <h3 class="sub-title">✏️ Sửa Tham Số &amp; Gửi Lại Gói Tin (HTTP Repeater)</h3>
+                    <span id="repSelectedBadge" class="pill pill-info">Soạn gói mới</span>
+                  </div>
+
+                  <div id="repeaterSavedVarsBar" class="vars-pill-bar"></div>
+
+                  <div class="rep-method-url-row">
+                    <select id="repMethodSelect" class="input-el input-sm method-select" aria-label="Phương thức HTTP">
+                      <option value="GET">GET</option>
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="PATCH">PATCH</option>
+                      <option value="DELETE">DELETE</option>
+                    </select>
+                    <input
+                      id="repUrlInput"
+                      type="text"
+                      class="input-el input-sm mono-input flex-1"
+                      placeholder="https://itunes.apple.com/lookup?bundleId={{maUngDung}}"
+                    />
+                  </div>
+                  <div id="repResolvedUrlHint" class="resolved-url-hint" hidden></div>
+
+                  <div class="field-block">
+                    <label for="repHeadersInput" class="ctrl-label">Tiêu đề gửi đi (Headers — JSON, dùng được {{khóa}}):</label>
+                    <textarea id="repHeadersInput" rows="3" class="input-el mono-textarea">
+{
+  "Accept": "application/json"
+}</textarea
+                    >
+                  </div>
+
+                  <div class="field-block">
+                    <div class="compact-head-between">
+                      <label for="repBodyInput" class="ctrl-label">Nội dung gửi đi (Request Body — dùng được {{khóa}}):</label>
+                      <button id="decodeReqBodyBtn" type="button" class="btn-mini btn-mini-info">🔓 Giải mã Body</button>
+                    </div>
+                    <textarea
+                      id="repBodyInput"
+                      rows="4"
+                      class="input-el mono-textarea"
+                      placeholder='{"product_id": "{{maSanPham}}"}'
+                    ></textarea>
+                  </div>
+
+                  <div class="rep-send-bar">
+                    <select id="repSendFromSelect" class="input-el input-sm flex-1" aria-label="Nguồn phát gói tin">
+                      <option value="auto">Nguồn gửi: Tự động (Ưu tiên gửi từ trong App iPhone nếu đang gắn)</option>
+                      <option value="device">Bắt buộc gửi từ trong App iPhone (Giữ Cookie/TLS của App)</option>
+                      <option value="pc">Gửi trực tiếp từ Máy tính Windows (Có tường lửa chặn SSRF)</option>
+                    </select>
+                    <button id="sendRepeaterBtn" type="button" class="btn btn-primary">🚀 Gửi Lại Gói Tin</button>
+                  </div>
+                </div>
+
+                <!-- Phải: Hộp trả lời thật & Trích xuất ID tự động -->
+                <div class="pane-card">
+                  <div class="compact-head-between">
+                    <h3 class="sub-title">📬 Hộp Trả Lời Thực Tế (HTTP &amp; Kết Quả JS)</h3>
+                    <div class="mini-btn-row">
+                      <span id="repStatusBadge" class="badge-lv lv-info">CHỜ PHẢN HỒI</span>
+                      <span id="repLatencyBadge" class="mono-meta">-- ms</span>
+                      <button id="decodeResponseBtn" type="button" class="btn-mini btn-mini-info">🔓 Giải mã</button>
+                      <button id="copyResponseBtn" type="button" class="btn-mini">Copy</button>
+                    </div>
+                  </div>
+
+                  <!-- Gợi ý bấm 1 chạm Lưu các mã ID phát hiện trong gói trả về -->
+                  <div id="detectedParamsBar" class="detected-ids-bar" hidden></div>
+
+                  <pre id="repResponseBodyPre" class="response-body-pre">// Hộp trả lời thật từ máy chủ API hoặc từ hàm send({...}) trên iPhone sẽ hiển thị đầy đủ tại đây.</pre>
+
+                  <details class="headers-details">
+                    <summary>Xem chi tiết Tiêu đề phản hồi (Response Headers / Nguồn gói)</summary>
+                    <pre id="repResponseHeadersPre" class="headers-pre">{}</pre>
+                  </details>
+                </div>
+              </div>
+
+              <!-- KHỐI 4C: TRẠM GIẢI MÃ LIÊN THÔNG & KIỂM ĐỊNH CHỮ KÝ SỐ APPLE STOREKIT 2 JWS -->
+              <div id="unifiedDecoderSection" class="pane-card">
+                <div class="section-header compact-header">
+                  <div>
+                    <h3 class="sub-title">🔓 Trạm Giải Mã Liên Thông &amp; Xác Thực Chữ Ký Số StoreKit 2 JWS (ES256 + x5c)</h3>
+                    <p class="section-desc">
+                      Tự động bóc tách và kiểm tra mật mã thật cho chuỗi <code>JWS StoreKit 2</code> (kể cả gói lồng <code>signedTransactionInfo</code>), <code>JWT</code>, <code>Base64 / Biên lai</code>, <code>URL</code>, <code>Hex</code> và cấu hình <code>WireGuard VPN</code>.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <select id="decoderModeSelect" class="input-el input-sm" aria-label="Chế độ giải mã">
+                      <option value="auto">Tự động nhận diện định dạng</option>
+                      <option value="jwt">JWS / JWT StoreKit 2 (Kiểm tra chữ ký ES256 + x5c)</option>
+                      <option value="base64">Chuỗi Base64 / Biên lai Receipt</option>
+                      <option value="url">Giải mã URL (%xx &amp; tham số truy vấn)</option>
+                      <option value="hex">Mã Hex thập lục phân</option>
+                      <option value="json">Làm đẹp JSON lồng nhau</option>
+                    </select>
+                    <button id="runDecoderBtn" type="button" class="btn btn-primary btn-sm">🔓 Giải Mã &amp; Kiểm Tra</button>
+                    <button id="clearDecoderBtn" type="button" class="btn-mini">Xóa</button>
+                  </div>
+                </div>
+
+                <div class="decoder-split-grid">
+                  <textarea
+                    id="decoderInputTextarea"
+                    rows="6"
+                    class="input-el mono-textarea"
+                    placeholder="Dán chuỗi JWS StoreKit 2 (eyJhbGciOiJFUzI1NiIsIng1YyI6...), JWT, Base64, Hex, URL hoặc cấu hình [Interface] WireGuard vào đây..."
+                  ></textarea>
+
+                  <div class="decoder-output-col">
+                    <div class="decoder-status-row">
+                      <span id="decoderFormatBadge" class="badge-lv lv-info">CHỜ DỮ LIỆU</span>
+                      <span id="decoderCryptoBanner" class="decoder-summary-text">Chưa có dữ liệu cần giải mã</span>
+                    </div>
+                    <div id="decoderExtractedIdsBar" class="detected-ids-bar" hidden></div>
+                    <pre id="decoderOutputPre" class="decoder-pre">// Kết quả giải mã thật và trạng thái xác thực chữ ký số Apple StoreKit JWS sẽ hiển thị tại đây.</pre>
+                  </div>
+                </div>
+              </div>
+
+              <!-- KHỐI 4D: SỔ LƯU THAM SỐ & MÃ ID BỀN VỮNG THEO ỨNG DỤNG -->
+              <div id="paramVaultSection" class="pane-card">
+                <div class="section-header compact-header">
+                  <div>
+                    <h3 class="sub-title">💾 Sổ Lưu Tham Số &amp; Mã ID Cần Thiết (<span id="paramTotalCount">0</span> mục)</h3>
+                    <p class="section-desc">
+                      Lưu bền vững <code>productId</code>, <code>bundleId</code>, <code>transactionId</code>, <code>userId</code> vào <code>data/saved-params.json</code> để chèn 1 chạm vào Gói gửi lại (<code>{{khóa}}</code>) hoặc Khung Mã JS (<code>const khóa = ...</code>).
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <label class="checkbox-pill">
+                      <input id="paramFilterCurrentAppChk" type="checkbox" />
+                      <span>Chỉ hiện ID của App đang chọn</span>
+                    </label>
+                    <button id="exportParamsBtn" type="button" class="btn-mini">⬇️ Xuất JSON Sổ ID</button>
+                  </div>
+                </div>
+
+                <div class="param-save-bar">
+                  <input
+                    id="paramKeyInput"
+                    type="text"
+                    class="input-el input-sm mono-input"
+                    placeholder="Tên khóa biến (VD: maSanPham)"
+                  />
+                  <input
+                    id="paramValueInput"
+                    type="text"
+                    class="input-el input-sm mono-input flex-1"
+                    placeholder="Giá trị thực tế (VD: com.demo.vip_yearly)"
+                  />
+                  <input
+                    id="paramNoteInput"
+                    type="text"
+                    class="input-el input-sm"
+                    placeholder="Ghi chú (Tùy chọn)"
+                  />
+                  <button id="saveParamFormBtn" type="button" class="btn btn-accent-sm">💾 Lưu vào Sổ ID</button>
+                  <input
+                    id="paramSearchInput"
+                    type="search"
+                    class="input-el input-sm"
+                    placeholder="Tìm nhanh khóa / giá trị..."
+                  />
+                </div>
+
+                <div class="table-scroll max-h-240">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 190px">Tên khóa &amp; Biến chèn</th>
+                        <th>Giá trị đã lưu</th>
+                        <th style="width: 210px">Ứng dụng / Ghi chú</th>
+                        <th style="width: 290px">Liên thông sang công cụ khác</th>
+                      </tr>
+                    </thead>
+                    <tbody id="savedParamsTableBody">
+                      <tr>
+                        <td colspan="4" class="empty-cell">Chưa có mã ID nào được lưu.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================================================================= -->
+          <!-- KHÔNG GIAN ⑤: KÍNH LÚP SOI HÀM, QUÉT RAM & GỌI HÀM TỪ XA RPC       -->
+          <!-- ================================================================= -->
+          <section id="wsPaneMagnifier" class="ws-pane" hidden aria-label="Không gian 5: Kính lúp soi hàm, RAM và RPC">
+            <div class="pane-card">
+              <div class="section-header">
+                <div>
+                  <h2 class="section-title">⑤ Kính Lúp Soi Hàm Xử Lý, Quét Đối Tượng RAM &amp; Gọi Hàm Từ Xa (RPC)</h2>
+                  <p class="section-desc">
+                    Tự động sinh kịch bản theo dõi chuẩn an toàn <strong>Frida 17</strong> (có bọc <code>try/catch</code> chống văng App, kiểm tra <code>!arg.isNull()</code>, đợi nạp thư viện trễ <code>dlopen</code> và đẩy kết quả thẳng vào Hộp trả lời).
+                  </p>
+                </div>
+              </div>
+
+              <!-- Thanh chọn 4 chế độ con bên trong Không gian ⑤ -->
+              <div class="subtab-bar" id="magSubTabs" role="tablist">
+                <button type="button" class="subtab-btn active" data-magtab="smart">
+                  🔍 1. Dò Hàm Thông Minh (<span id="magFuncCount">0</span>)
+                </button>
+                <button type="button" class="subtab-btn" data-magtab="native">
+                  🧱 2. Thư Viện &amp; Hàm Xuất Native (.dylib / .dll)
+                </button>
+                <button type="button" class="subtab-btn" data-magtab="objc">
+                  🍎 3. Lớp iOS ObjC &amp; Quét Đối Tượng RAM
+                </button>
+                <button type="button" class="subtab-btn" data-magtab="rpc">
+                  📡 4. Gọi Hàm Điều Khiển Từ Xa (RPC)
+                </button>
+              </div>
+
+              <!-- MỤC 5.1: DÒ HÀM THÔNG MINH THEO CHỦ ĐỀ -->
+              <div id="magSubSmart" class="mag-subpane">
+                <div class="filter-pills-bar">
+                  <button type="button" class="pill-btn active" data-magpreset="purchase">🛒 Mua hàng &amp; StoreKit</button>
+                  <button type="button" class="pill-btn" data-magpreset="login">🔐 Đăng nhập &amp; Xác thực</button>
+                  <button type="button" class="pill-btn" data-magpreset="network">🌐 Mạng &amp; Gói tin API</button>
+                  <button type="button" class="pill-btn" data-magpreset="crypto">🔑 Mã hóa &amp; Keychain</button>
+                </div>
+                <div class="toolbar-subrow">
+                  <input
+                    id="magFuncKeywordInput"
+                    type="search"
+                    class="input-el input-sm flex-1"
+                    placeholder="Hoặc tự nhập tên hàm cần tìm (VD: verifyReceipt, setVip, token, entitlement)..."
+                  />
+                  <button id="magSearchFuncBtn" type="button" class="btn btn-primary btn-sm">🔍 Dò tìm hàm ngay</button>
+                </div>
+                <div class="table-scroll max-h-360">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Tên lớp &amp; Hàm xử lý (Ưu tiên xếp hàm riêng của App lên đầu)</th>
+                        <th style="width: 195px">Tạo mã theo dõi chuẩn Frida 17</th>
+                      </tr>
+                    </thead>
+                    <tbody id="magFuncTableBody">
+                      <tr>
+                        <td colspan="2" class="empty-cell">
+                          Chọn chủ đề phía trên hoặc nhập từ khóa rồi bấm <strong>🔍 Dò tìm hàm ngay</strong> (nếu chưa gắn phiên, hệ thống sẽ tự gắn chỉ đọc vào App đang chọn).
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- MỤC 5.2: THƯ VIỆN NATIVE (.DYLIB / .DLL) & HÀM XUẤT EXPORTS -->
+              <div id="magSubNative" class="mag-subpane" hidden>
+                <div class="toolbar-subrow">
+                  <input
+                    id="moduleFilterInput"
+                    type="search"
+                    class="input-el input-sm flex-1"
+                    placeholder="Lọc tên thư viện (VD: StoreKit, Security, Flutter, UnityFramework, kernel32)..."
+                  />
+                  <button id="loadModulesBtn" type="button" class="btn btn-primary btn-sm">
+                    📦 Tải danh sách Thư viện đang nạp
+                  </button>
+                </div>
+
+                <div class="native-split-grid">
+                  <div class="table-scroll max-h-340">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Tên thư viện</th>
+                          <th>Địa chỉ Base</th>
+                          <th>Kích thước</th>
+                          <th>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody id="modulesTableBody">
+                        <tr>
+                          <td colspan="4" class="empty-cell">Bấm "Tải danh sách Thư viện đang nạp" để liệt kê.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <div class="toolbar-subrow">
+                      <strong id="exportsTitle" class="mono-meta">Hàm xuất (Exports): Chưa chọn thư viện</strong>
+                      <input
+                        id="exportFilterInput"
+                        type="search"
+                        class="input-el input-sm flex-1"
+                        placeholder="Lọc nhanh tên hàm xuất..."
+                      />
+                    </div>
+                    <div class="table-scroll max-h-300">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th>Tên hàm xuất</th>
+                            <th>Loại</th>
+                            <th>Địa chỉ</th>
+                            <th>Hook Frida 17</th>
+                          </tr>
+                        </thead>
+                        <tbody id="exportsTableBody">
+                          <tr>
+                            <td colspan="4" class="empty-cell">Bấm "Xem hàm xuất" ở một thư viện bên trái.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MỤC 5.3: LỚP OBJECTIVE-C & QUÉT ĐỐI TƯỢNG SỐNG TRÊN BỘ NHỚ RAM -->
+              <div id="magSubObjc" class="mag-subpane" hidden>
+                <div class="objc-ram-grid">
+                  <!-- Nửa trái: Tìm lớp & hàm Objective-C -->
+                  <div class="sub-block">
+                    <h3 class="sub-title">🍎 Quét Lớp &amp; Phương Thức Objective-C</h3>
+                    <div class="toolbar-subrow">
+                      <input
+                        id="objcFilterInput"
+                        type="search"
+                        class="input-el input-sm flex-1"
+                        placeholder="Nhập từ khóa tên Lớp (VD: SKPayment, Purchase, Auth, Account)..."
+                      />
+                      <button id="searchObjcClassesBtn" type="button" class="btn btn-primary btn-sm" data-ios-only="1">
+                        Tìm lớp iOS
+                      </button>
+                    </div>
+                    <div class="objc-two-lists">
+                      <ul id="objcClassList" class="selectable-list">
+                        <li class="empty-list-item">Nhập từ khóa và bấm "Tìm lớp iOS".</li>
+                      </ul>
+                      <div class="table-scroll max-h-280">
+                        <div class="mono-meta pad-bottom-6" id="objcMethodsTitle">Chọn 1 lớp bên trái để xem các hàm</div>
+                        <table class="data-table">
+                          <thead>
+                            <tr>
+                              <th>Selector (Tên hàm)</th>
+                              <th>Địa chỉ</th>
+                              <th>Theo dõi</th>
+                            </tr>
+                          </thead>
+                          <tbody id="objcMethodsBody">
+                            <tr>
+                              <td colspan="3" class="empty-cell">Chưa chọn lớp Objective-C.</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Nửa phải: Quét đối tượng sống trên RAM (ObjC.chooseSync) -->
+                  <div class="sub-block">
+                    <div class="compact-head-between">
+                      <h3 class="sub-title">🧠 Quét Đối Tượng Đang Sống Trong RAM</h3>
+                      <span id="magMemCountBadge" class="pill pill-info">0 đối tượng</span>
+                    </div>
+                    <div class="filter-pills-bar">
+                      <button type="button" class="pill-btn mem-chip" data-memclass="SKPaymentQueue" data-ios-only="1">SKPaymentQueue</button>
+                      <button type="button" class="pill-btn mem-chip" data-memclass="NSURLSession" data-ios-only="1">NSURLSession</button>
+                      <button type="button" class="pill-btn mem-chip" data-memclass="NSUserDefaults" data-ios-only="1">NSUserDefaults</button>
+                      <button type="button" class="pill-btn mem-chip" data-memclass="UIViewController" data-ios-only="1">UIViewController</button>
+                    </div>
+                    <div class="toolbar-subrow">
+                      <input
+                        id="magMemClassInput"
+                        type="text"
+                        class="input-el input-sm mono-input flex-1"
+                        value="SKPaymentQueue"
+                        placeholder="Tên lớp cần tìm trong RAM..."
+                      />
+                      <button id="magScanMemBtn" type="button" class="btn btn-primary btn-sm" data-ios-only="1">
+                        🧠 Quét RAM ngay
+                      </button>
+                    </div>
+                    <div class="table-scroll max-h-260">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th style="width: 135px">Con trỏ RAM</th>
+                            <th>Mô tả trực tiếp đối tượng đang sống</th>
+                          </tr>
+                        </thead>
+                        <tbody id="magMemTableBody">
+                          <tr>
+                            <td colspan="2" class="empty-cell">Chọn nhanh một tên lớp hoặc nhập tên lớp rồi bấm "Quét RAM ngay".</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MỤC 5.4: GỌI HÀM ĐIỀU KHIỂN TỪ XA 2 CHIỀU (DYNAMIC RPC EXPLORER) -->
+              <div id="magSubRpc" class="mag-subpane" hidden>
+                <div class="sub-block">
+                  <div class="section-header compact-header">
+                    <div>
+                      <h3 class="sub-title">📡 Trạm Gọi Hàm Điều Khiển Từ Xa 2 Chiều (<code>rpc.exports</code>)</h3>
+                      <p class="section-desc">
+                        Hệ thống tự động quét danh sách các hàm thực tế mà kịch bản JS đang mở để bạn bấm chọn 1 chạm — không còn lỗi gọi mù hàm không tồn tại!
+                      </p>
+                    </div>
+                    <div class="header-actions">
+                      <button id="refreshRpcExportsBtn" type="button" class="btn btn-secondary btn-sm">
+                        🔄 Dò hàm rpc.exports đang mở
+                      </button>
+                      <button id="loadRpcDemoBtn" type="button" class="btn btn-accent-sm">
+                        ⚡ Nạp &amp; Chạy Mẫu 6.1 (Mở hàm ping &amp; timLopObjC)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div id="rpcDiscoveredBar" class="vars-pill-bar">
+                    <span class="vars-hint">Các hàm RPC đang mở trong phiên hiện tại: Chưa dò (bấm nút bên trên hoặc nạp Mẫu 6.1).</span>
+                  </div>
+
+                  <div class="rpc-form-row">
+                    <div class="field-block flex-1">
+                      <label for="rpcMethodInput" class="ctrl-label">Tên hàm trong rpc.exports:</label>
+                      <input
+                        id="rpcMethodInput"
+                        type="text"
+                        class="input-el input-sm mono-input"
+                        value=""
+                        placeholder="Chọn nút hàm ở thanh trên hoặc nhập tên hàm..."
+                      />
+                    </div>
+                    <div class="field-block flex-2">
+                      <label for="rpcArgsInput" class="ctrl-label">Mảng tham số truyền vào (JSON Array):</label>
+                      <input
+                        id="rpcArgsInput"
+                        type="text"
+                        class="input-el input-sm mono-input"
+                        value='["Antidv"]'
+                        placeholder='Ví dụ: ["Antidv"] hoặc []'
+                      />
+                    </div>
+                    <div class="field-block rpc-btn-wrap">
+                      <span class="ctrl-label">&nbsp;</span>
+                      <button id="invokeRpcBtn" type="button" class="btn btn-primary btn-sm" disabled>
+                        ▶ Gọi hàm RPC ngay
+                      </button>
+                    </div>
+                  </div>
+
+                  <pre id="rpcResultPre" class="code-preview-box">// Kết quả trả về trực tiếp từ hàm rpc.exports trên thiết bị sẽ hiển thị tại đây.</pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================================================================= -->
+          <!-- KHÔNG GIAN ⑥: TRÌNH DUYỆT TỆP SANDBOX & KÉT SẮT BẢO MẬT           -->
+          <!-- ================================================================= -->
+          <section id="wsPaneSandbox" class="ws-pane" hidden aria-label="Không gian 6: Tệp tin Sandbox và Két sắt bảo mật">
+            <div class="pane-stack">
+              <!-- KHỐI 6A: TRÌNH DUYỆT THƯ MỤC DỮ LIỆU RIÊNG SANDBOX -->
+              <div class="pane-card">
+                <div class="section-header">
+                  <div>
+                    <h2 class="section-title">⑥ Trình Duyệt Ngăn Chứa Tệp Tin Riêng (App Sandbox — Chỉ Đọc An Toàn)</h2>
+                    <p class="section-desc">
+                      Tự động giải mã tệp <code>Binary Plist (.plist)</code>, <code>JSON</code> và nhận diện đầu tệp cơ sở dữ liệu <code>SQLite</code>; khóa cứng chống đi ngược ra ngoài thư mục ứng dụng.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <button id="sandboxUpDirBtn" type="button" class="btn btn-secondary btn-sm" data-ios-only="1">
+                      ⬆️ Lên thư mục cha
+                    </button>
+                    <button id="sandboxRefreshBtn" type="button" class="btn btn-primary btn-sm" data-ios-only="1">
+                      📂 Mở đọc Sandbox ngay
+                    </button>
+                  </div>
+                </div>
+
+                <div class="filter-pills-bar">
+                  <button type="button" class="pill-btn sb-dir-btn active" data-sbdir="" data-ios-only="1">🏠 Thư mục gốc ~/</button>
+                  <button type="button" class="pill-btn sb-dir-btn" data-sbdir="Documents" data-ios-only="1">📁 Documents</button>
+                  <button type="button" class="pill-btn sb-dir-btn" data-sbdir="Library" data-ios-only="1">📁 Library</button>
+                  <button type="button" class="pill-btn sb-dir-btn" data-sbdir="Library/Preferences" data-ios-only="1">⚙️ Preferences (.plist)</button>
+                  <button type="button" class="pill-btn sb-dir-btn" data-sbdir="Library/Caches" data-ios-only="1">🗂️ Caches</button>
+                  <button type="button" class="pill-btn sb-dir-btn" data-sbdir="tmp" data-ios-only="1">🕒 tmp</button>
+                </div>
+
+                <div id="sandboxCurrentPathLabel" class="mono-meta pad-bottom-6">
+                  Đường dẫn hiện tại: ~/ (Chọn ứng dụng iPhone rồi bấm "📂 Mở đọc Sandbox ngay")
+                </div>
+
+                <div class="sandbox-split-grid">
+                  <div class="table-scroll max-h-320">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Tên thư mục / tệp tin</th>
+                          <th style="width: 105px">Kích thước</th>
+                          <th style="width: 115px">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody id="sandboxFilesTableBody">
+                        <tr>
+                          <td colspan="3" class="empty-cell">Bấm "📂 Mở đọc Sandbox ngay" hoặc chọn nhanh một thư mục phía trên.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="sandbox-viewer-col">
+                    <div class="compact-head-between">
+                      <strong id="sandboxPreviewTitle" class="mono-meta">📄 Nội dung tệp xem trước</strong>
+                      <div class="mini-btn-row">
+                        <button id="decodeSandboxFileBtn" type="button" class="btn-mini btn-mini-info">
+                          🔓 Đưa sang Giải mã
+                        </button>
+                        <button id="copySandboxFileBtn" type="button" class="btn-mini">Copy</button>
+                      </div>
+                    </div>
+                    <pre id="sandboxFileViewerPre" class="response-body-pre">// Bấm "Xem tệp" ở danh sách bên trái để đọc nội dung đã giải mã Plist / JSON / văn bản.</pre>
+                  </div>
+                </div>
+              </div>
+
+              <!-- KHỐI 6B: KÉT SẮT PHIÊN ĐĂNG NHẬP, COOKIE & SIÊU DỮ LIỆU KEYCHAIN -->
+              <div class="pane-card">
+                <div class="section-header compact-header">
+                  <div>
+                    <h3 class="sub-title">🔐 Két Sắt Mã Phiên UserDefaults, Cookie &amp; Siêu Dữ Liệu Keychain</h3>
+                    <p class="section-desc">
+                      Kiểm tra chuẩn <strong>OWASP MASVS-STORAGE</strong>: Các chuỗi nhạy cảm được che dấu mặc định (<code>••••</code>), không trích xuất khóa bí mật thô và không kích hoạt hộp thoại FaceID.
+                    </p>
+                  </div>
+                  <div class="header-actions">
+                    <button id="toggleVaultMaskBtn" type="button" class="btn btn-secondary btn-sm">
+                      👁️ Hiện giá trị đầy đủ
+                    </button>
+                    <button id="inspectVaultBtn" type="button" class="btn btn-primary btn-sm" data-ios-only="1">
+                      🔐 Quét Két Sắt Bảo Mật Ngay
+                    </button>
+                  </div>
+                </div>
+
+                <div id="vaultSummaryNote" class="mono-meta pad-bottom-6">
+                  Chưa quét — bấm "🔐 Quét Két Sắt Bảo Mật Ngay" để kiểm tra khóa phiên, Cookie và cấu hình Keychain của ứng dụng.
+                </div>
+
+                <div class="table-scroll max-h-280">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 140px">Nguồn lưu trữ</th>
+                        <th style="width: 240px">Tên khóa / Dịch vụ</th>
+                        <th>Giá trị xem trước &amp; Thuộc tính bảo vệ</th>
+                        <th style="width: 165px">Liên thông Sổ ID</th>
+                      </tr>
+                    </thead>
+                    <tbody id="securityVaultTableBody">
+                      <tr>
+                        <td colspan="4" class="empty-cell">Chưa có dữ liệu quét Két sắt Bảo mật.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- =================================================================== -->
+        <!-- CỘT PHẢI CỐ ĐỊNH: MÀN HÌNH NHẬT KÝ ĐÔI THỜI GIAN THỰC (< 5 MS)      -->
+        <!-- =================================================================== -->
+        <aside class="logs-dock" aria-label="Màn hình nhật ký thời gian thực">
+          <div class="logs-head">
+            <div class="log-tabs" role="tablist">
+              <button type="button" class="log-tab-btn active" data-logtab="runtime">
+                📱 Kết quả từ App (<span id="runtimeLogCount">0</span>)
+              </button>
+              <button type="button" class="log-tab-btn" data-logtab="system">
+                🖥️ Máy chủ &amp; Cáp USB (<span id="systemLogCount">0</span>)
+              </button>
+            </div>
+            <div class="mini-btn-row">
+              <button id="pauseLogStreamBtn" type="button" class="btn-mini" aria-pressed="false">⏸ Tạm dừng</button>
+              <label class="checkbox-pill">
+                <input id="autoScrollToggle" type="checkbox" checked />
+                <span>Tự cuộn</span>
+              </label>
+              <button id="exportLogsBtn" type="button" class="btn-mini" title="Xuất nhật ký ra tệp JSON">⬇️ JSON</button>
+              <button id="clearLogsBtn" type="button" class="btn-mini btn-mini-danger" title="Làm sạch bảng đang xem">
+                Xóa
+              </button>
+            </div>
+          </div>
+
+          <div class="logs-filter-bar">
+            <div class="level-pills" role="group" aria-label="Lọc phân loại nhật ký">
+              <button type="button" class="lv-pill active" data-level="ALL">Tất cả</button>
+              <button type="button" class="lv-pill" data-level="send">Gói JSON</button>
+              <button type="button" class="lv-pill" data-level="info">Thông báo</button>
+              <button type="button" class="lv-pill" data-level="rpc">Hàm RPC</button>
+              <button type="button" class="lv-pill" data-level="warning">Cảnh báo</button>
+              <button type="button" class="lv-pill" data-level="error">Báo lỗi</button>
+            </div>
+            <input
+              id="logSearchInput"
+              type="search"
+              class="input-el input-sm"
+              placeholder="Gõ từ khóa lọc nhật ký (VD: product, sandbox, 200, lỗi)..."
+            />
+          </div>
+
+          <!-- Bảng 1: Nhật ký thực thi từ App trên thiết bị -->
+          <div id="runtimeLogScroll" class="log-table-scroll">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th style="width: 44px">#</th>
+                  <th style="width: 78px">Giờ</th>
+                  <th style="width: 82px">Loại</th>
+                  <th>Nội dung trả về trực tiếp từ Thiết bị</th>
+                </tr>
+              </thead>
+              <tbody id="runtimeLogBody">
+                <tr>
+                  <td colspan="4" class="empty-cell">
+                    Chưa có dòng kết quả nào. Hãy bấm <strong>▶ Chạy mã JS</strong> hoặc bật <strong>Công tắc 1 chạm</strong> để bắt đầu!
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Bảng 2: Nhật ký hệ thống Backend & Cáp USB -->
+          <div id="systemLogScroll" class="log-table-scroll" hidden>
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th style="width: 78px">Giờ</th>
+                  <th style="width: 78px">Mức</th>
+                  <th style="width: 135px">Tệp : Dòng</th>
+                  <th>Thông điệp Máy chủ &amp; Mã Trace</th>
+                </tr>
+              </thead>
+              <tbody id="systemLogBody">
+                <tr>
+                  <td colspan="4" class="empty-cell">Đang đồng bộ nhật ký máy chủ...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- Ngăn thông báo nổi góc phải dưới -->
+    <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+
+    <script type="module" src="/app.mjs"></script>
+  </body>
+</html>
